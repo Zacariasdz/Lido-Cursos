@@ -1,0 +1,8 @@
+{
+  "name": "Lido - Premium Learning Platform",
+  "description": "A high-end educational platform with Apple-inspired aesthetics, featuring course management, student dashboards, and interactive learning tools.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

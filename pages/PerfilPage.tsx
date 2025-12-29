@@ -1,11 +1,67 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabase';
 
 const PerfilPage: React.FC = () => {
+  const { user, logout, refreshProfile } = useAuth();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [bio, setBio] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{name?: string, email?: string}>({});
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setBio(user.bio || '');
+      setEmail(user.id); // Apenas um placeholder até pegarmos o email real
+      
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user?.email) setEmail(data.user.email);
+      });
+    }
+  }, [user]);
+
+  const validate = () => {
+    const newErrors: {name?: string, email?: string} = {};
+    if (name.length < 3) newErrors.name = 'O nome deve ter pelo menos 3 caracteres.';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) newErrors.email = 'Insira um e-mail válido.';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSave = async () => {
+    if (!validate() || !user) return;
+    
+    setLoading(true);
+    setSaveSuccess(false);
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ name, bio })
+        .eq('id', user.id);
+
+      if (error) throw error;
+      
+      await refreshProfile();
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Erro ao salvar perfil:', err);
+      alert('Falha ao salvar alterações.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0e14] text-[#f5f5f7] selection:bg-blue-500/30 pb-24 md:pb-12 animate__animated animate__fadeIn">
-      {/* Page Styles - Replicating the provided CSS as Tailwind utilities where possible */}
       <style>{`
         .glass-card { 
             background: rgba(22, 30, 43, 0.6); 
@@ -27,6 +83,7 @@ const PerfilPage: React.FC = () => {
             outline: none;
             transition: all 0.3s;
         }
+        .input-field.error { border-color: #ef4444; }
         .input-field:focus { 
             border-color: #0071e3; 
             background: rgba(0,0,0,0.5);
@@ -34,7 +91,6 @@ const PerfilPage: React.FC = () => {
         }
       `}</style>
 
-      {/* Top Navigation */}
       <nav className="fixed top-0 w-full z-[100] px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 group">
@@ -45,45 +101,27 @@ const PerfilPage: React.FC = () => {
           </Link>
           
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-black tracking-widest uppercase opacity-40">Status:</span>
+            <span className="text-[10px] font-black tracking-widest uppercase opacity-40">Cargo:</span>
             <div className="badge-verified px-4 py-1.5 rounded-full text-[10px] font-black tracking-wider uppercase flex items-center gap-2">
-              <i className="ph-fill ph-seal-check text-sm"></i> Verificado
+              <i className="ph-fill ph-seal-check text-sm"></i> {user?.role === 'creator' ? 'Criador' : user?.role === 'admin' ? 'Administrador' : 'Estudante'}
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-6 pt-24">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* Sidebar */}
           <aside className="lg:col-span-4 space-y-6">
             <div className="glass-card p-8 flex flex-col items-center text-center">
               <div className="relative group cursor-pointer">
                 <img 
-                  src="https://i.pravatar.cc/150?u=luan" 
-                  className="w-32 h-32 rounded-full border-4 border-blue-500/20 group-hover:opacity-80 transition" 
+                  src={user?.avatar_url || `https://ui-avatars.com/api/?name=${name || 'User'}&background=0071e3&color=fff`} 
+                  className="w-32 h-32 rounded-full border-4 border-blue-500/20 group-hover:opacity-80 transition object-cover" 
                   alt="Avatar"
                 />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                  <i className="ph ph-camera text-2xl"></i>
-                </div>
               </div>
-              <h2 className="text-2xl font-black mt-6 tracking-tighter">Luan Silva</h2>
-              <p className="text-sm opacity-40 mb-6 italic">@luan_design</p>
-              
-              <div className="flex gap-4 w-full border-t border-white/5 pt-6">
-                <div className="flex-1">
-                  <p className="text-xl font-bold">14</p>
-                  <p className="text-[9px] font-black uppercase opacity-40">Cursos</p>
-                </div>
-                <div className="w-[1px] bg-white/5"></div>
-                <div className="flex-1">
-                  <p className="text-xl font-bold">2.4k</p>
-                  <p className="text-[9px] font-black uppercase opacity-40">Seguidores</p>
-                </div>
-              </div>
+              <h2 className="text-2xl font-black mt-6 tracking-tighter">{name}</h2>
+              <p className="text-sm opacity-40 mb-6 italic">{user?.status === 'active' ? 'Perfil Verificado' : 'Aguardando Verificação'}</p>
             </div>
 
             <Link to="/criador" className="block glass-card p-6 border border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 transition group">
@@ -102,22 +140,20 @@ const PerfilPage: React.FC = () => {
             </Link>
 
             <div className="glass-card p-4 space-y-1">
-              <button className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-white/5 transition text-sm font-medium text-left">
-                <i className="ph ph-bell text-xl opacity-40"></i> Notificações
-              </button>
-              <button className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-white/5 transition text-sm font-medium text-left">
-                <i className="ph ph-wallet text-xl opacity-40"></i> Métodos de Pagamento
-              </button>
-              <button className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-red-500/10 text-red-500 transition text-sm font-bold text-left">
+              <button onClick={logout} className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-red-500/10 text-red-500 transition text-sm font-bold text-left">
                 <i className="ph ph-sign-out text-xl"></i> Sair da Conta
               </button>
             </div>
           </aside>
 
-          {/* Main Form Area */}
           <div className="lg:col-span-8 space-y-8">
-            
-            <section className="glass-card p-8 md:p-12">
+            <section className="glass-card p-8 md:p-12 relative overflow-hidden">
+              {saveSuccess && (
+                <div className="absolute top-0 left-0 right-0 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-[0.3em] py-2 text-center animate__animated animate__fadeInDown">
+                  Perfil atualizado com sucesso!
+                </div>
+              )}
+
               <header className="mb-10 text-left">
                 <h3 className="text-2xl font-bold tracking-tight">Configurações de Perfil</h3>
                 <p className="text-sm opacity-40 mt-1">Atualize suas informações públicas e de contato.</p>
@@ -126,71 +162,48 @@ const PerfilPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-3 text-left">
                   <label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 ml-1">Nome Completo</label>
-                  <input type="text" className="input-field" defaultValue="Luan Silva" />
+                  <input 
+                    type="text" 
+                    className={`input-field ${errors.name ? 'error' : ''}`} 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                  {errors.name && <p className="text-[10px] text-red-500 font-bold mt-1 ml-1">{errors.name}</p>}
                 </div>
                 <div className="space-y-3 text-left">
                   <label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 ml-1">E-mail Principal</label>
-                  <input type="email" className="input-field" defaultValue="luan@exemplo.com" />
+                  <input 
+                    type="email" 
+                    disabled
+                    className="input-field opacity-50 cursor-not-allowed" 
+                    value={email} 
+                  />
+                  <p className="text-[9px] opacity-30 ml-1">O e-mail não pode ser alterado diretamente.</p>
                 </div>
-                <div className="space-y-3 text-left">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 ml-1">Bio (Criador)</label>
-                  <input type="text" className="input-field" placeholder="Ex: Especialista em UI Design..." />
-                </div>
-                <div className="space-y-3 text-left">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 ml-1">Localização</label>
-                  <input type="text" className="input-field" defaultValue="São Paulo, Brasil" />
+                <div className="space-y-3 text-left md:col-span-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30 ml-1">Bio</label>
+                  <textarea 
+                    className="input-field min-h-[120px] resize-none" 
+                    value={bio} 
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder="Conte um pouco sobre você..."
+                  />
                 </div>
               </div>
 
               <div className="mt-12 pt-8 border-t border-white/5 flex flex-col md:flex-row gap-4">
-                <button className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-4 rounded-2xl font-bold text-sm transition shadow-lg shadow-blue-600/20">
-                  Salvar Alterações
-                </button>
-                <button className="bg-white/5 hover:bg-white/10 text-white px-10 py-4 rounded-2xl font-bold text-sm transition">
-                  Descartar
+                <button 
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-10 py-4 rounded-2xl font-bold text-sm transition shadow-lg shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Salvar Alterações'}
                 </button>
               </div>
             </section>
-
-            <section className="glass-card p-8 md:p-12">
-              <h3 className="text-xl font-bold mb-8 flex items-center gap-3">
-                <i className="ph ph-shield-check text-blue-500"></i> Segurança
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="p-6 bg-black/40 rounded-3xl border border-white/5 flex items-center justify-between">
-                  <div className="text-left">
-                    <h4 className="text-sm font-bold">Senha de Acesso</h4>
-                    <p className="text-xs opacity-40 mt-1">Alterada pela última vez há 3 meses.</p>
-                  </div>
-                  <button className="text-xs font-black text-blue-500 hover:underline">ALTERAR</button>
-                </div>
-
-                <div className="p-6 bg-black/40 rounded-3xl border border-white/5 flex items-center justify-between">
-                  <div className="text-left">
-                    <h4 className="text-sm font-bold">Autenticação em Duas Etapas (2FA)</h4>
-                    <p className="text-xs opacity-40 mt-1">Proteja sua conta com um código adicional.</p>
-                  </div>
-                  <div className="w-12 h-6 bg-emerald-500 rounded-full relative p-1 cursor-pointer">
-                    <div className="w-4 h-4 bg-white rounded-full ml-auto shadow-sm"></div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
           </div>
         </div>
       </main>
-
-      {/* Mobile Navigation Placeholder */}
-      <nav className="md:hidden fixed bottom-6 left-6 right-6 z-[100]">
-        <div className="glass-card px-8 py-4 flex items-center justify-around shadow-2xl">
-          <Link to="/" className="opacity-40"><i className="ph ph-house text-2xl"></i></Link>
-          <Link to="/cursos" className="opacity-40"><i className="ph ph-magnifying-glass text-2xl"></i></Link>
-          <Link to="/painel" className="opacity-40"><i className="ph ph-layout text-2xl"></i></Link>
-          <Link to="/perfil" className="text-blue-500"><i className="ph-fill ph-user text-2xl"></i></Link>
-        </div>
-      </nav>
     </div>
   );
 };

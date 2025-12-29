@@ -1,7 +1,35 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../services/supabase';
+
+interface Job {
+  id: string;
+  company: string;
+  position: string;
+  location: string;
+  job_type: string;
+}
 
 const TalentosPage: React.FC = () => {
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const fetchJobs = async () => {
+    try {
+      const { data, error } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setJobs(data || []);
+    } catch (err) {
+      console.error('Erro ao carregar vagas:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="max-w-7xl mx-auto px-6 pt-16 pb-20 animate__animated animate__fadeIn">
       <div className="bg-zinc-900 rounded-[3rem] p-12 md:p-20 text-white relative overflow-hidden mb-16 shadow-2xl">
@@ -11,16 +39,22 @@ const TalentosPage: React.FC = () => {
          <div className="relative z-10 max-w-2xl">
             <span className="bg-blue-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest mb-8 inline-block">Exclusivo Alunos Pro</span>
             <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-8 leading-tight">O mercado busca por <br /><span className="text-blue-500">você.</span></h1>
-            <p className="text-xl opacity-60 leading-relaxed mb-12">Conectamos os melhores alunos da Lido com empresas que valorizam o design de alto nível.</p>
+            <p className="text-xl opacity-60 leading-relaxed mb-12">Conectamos os melhores alunos da Lido com empresas de alto nível.</p>
             <button className="bg-white text-black px-10 py-5 rounded-2xl font-bold text-lg hover:scale-105 transition shadow-xl">Acessar Vagas</button>
          </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <JobCard company="Nubank" position="Product Designer Senior" location="Híbrido / SP" type="Full-time" />
-        <JobCard company="Stripe" position="UI Engineer" location="Remoto" type="Contract" />
-        <JobCard company="Apple" position="Motion Designer" location="Cupertino, CA" type="Full-time" />
-      </div>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {[1,2,3].map(i => <div key={i} className="h-80 bg-white/5 rounded-[2.5rem] animate-pulse"></div>)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {jobs.map(job => (
+            <JobCard key={job.id} company={job.company} position={job.position} location={job.location} type={job.job_type} />
+          ))}
+        </div>
+      )}
     </main>
   );
 };
